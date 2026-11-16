@@ -37,6 +37,10 @@ if download mode does not work from the Mac, see
 [When mtkclient does not reach the robot](#when-mtkclient-does-not-reach-the-robot). Tell the
 person this before starting.
 
+**Linux.** The same script runs on a Linux PC: see [On Linux](#on-linux) for what differs.
+`prepare` and the checks were run there; download mode was **not** tried on a real robot from
+Linux. Tell the person this instead of the Mac sentence above.
+
 ## Rules for the agent
 
 - **Talk to the person in their language**, in short messages. Before starting, tell them what
@@ -159,11 +163,32 @@ In order:
 
 Nothing is ever written when mtkclient cannot connect.
 
+### On Linux
+
+Everything above applies, reading "computer" for "Mac", with these differences:
+
+- **Packages** instead of Homebrew: Python 3.10+ (with `venv`), libusb 1.0, git, curl, unzip.
+  `prepare` prints the command for Arch, Debian/Ubuntu and Fedora. The person runs `sudo` commands.
+- **udev rule**: `prepare` stops (exit code 3) until the person has installed
+  [tools/setup/51-toque-robot.rules](tools/setup/51-toque-robot.rules) with the `sudo` command it
+  prints. The rule gives the user logged in at the computer (not an SSH session) access to the
+  robot's USB port, for mtkclient and adb, and keeps ModemManager away from it. Download-mode steps
+  refuse to run without it; `--no-udev-check` is for a person who set up USB access another way.
+- **Transport**: mtkclient goes through **libusb** by default (its usual way on Linux), so the
+  output shows no *Handshake failed, retrying...* lines while it waits. If it sees the robot but
+  fails, have the person switch the robot off and run the step again with `--serial`
+  (`/dev/ttyACM*`, with the same fixes as on macOS). `status` says which one is in use.
+- **Is the robot seen?** `lsusb` right after switching it on lists `0e8d:2000`; `ls /dev/ttyACM*`
+  lists nothing once it is really off. There is no *Allow accessory* prompt.
+- `adb` state *no permissions*: the udev rule is missing; the step says so.
+- On ARM Linux, `prepare` uses the distribution's adb (Google publishes none).
+- If download mode does not work from Linux either, the Windows fallback of step 3 above applies.
+
 ### Files the script downloads by itself
 
 | File | Source | Check |
 |---|---|---|
-| Android platform tools (adb) | `https://dl.google.com/android/repository/platform-tools-latest-darwin.zip` | (latest, from Google) |
+| Android platform tools (adb) | `https://dl.google.com/android/repository/platform-tools-latest-darwin.zip` (Linux: `…-latest-linux.zip`) | (latest, from Google) |
 | Magisk v31.0 | `https://github.com/topjohnwu/Magisk/releases/download/v31.0/Magisk-v31.0.apk` | SHA-256 `2c8a488b9a5293e578e95ae4f07e3c57aba4feec4a52ca4dd852a2692d6dd4e8` |
 | TWRP `hacks/recovery.img` | [EliasKotlyar/Monsieur-Cuisine-Connect-Hack](https://github.com/EliasKotlyar/Monsieur-Cuisine-Connect-Hack) | SHA-256 `fc9ac999fc3b0a6c0cb563f39359084a6fcc211aeb42e7b754990afa4b543d3e` |
 | Scatter `l706_dfbh_v_695scatter.txt` | same repository | SHA-256 `13b8260dba9e4efba874c09e35803af43cc69556ba0f1937226240b0ab318364`; `boot` at `0x1d20000` and `recovery` at `0x2d20000` (16 MiB each) are checked in it |

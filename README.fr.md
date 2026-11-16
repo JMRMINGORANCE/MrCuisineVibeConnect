@@ -20,7 +20,8 @@ qui remplace l'appli d'origine sur la tablette du robot tout en gardant **les re
 ## Installer
 
 **Commencez ici : [docs/INSTALLATION.fr.md](docs/INSTALLATION.fr.md)**, un guide pas à pas qui part
-de zéro, pour Mac. Sous Windows, suivez le
+de zéro, pour Mac (et, [pas encore essayé en mode download](docs/INSTALLATION.fr.md#8-depuis-un-pc-linux),
+pour un PC Linux). Sous Windows, suivez le
 [guide du dépôt d'origine](https://github.com/Wuki60/MrCuisineVibeConnect/blob/main/docs/INSTALLATION.fr.md).
 
 En bref : il faut un Mac, un câble **USB-A mâle ↔ USB-A mâle**, un petit tournevis Torx et 1 à 2

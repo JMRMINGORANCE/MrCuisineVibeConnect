@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Toque setup for the Monsieur Cuisine Connect (SKMC 1200), step by step, from a Mac.
+# Toque setup for the Monsieur Cuisine Connect (SKMC 1200), step by step, from a Mac or a Linux PC.
 # Written to be driven by an AI agent (see AGENTS.md) or by hand. Every step is safe to re-run.
 #
 #   tools/setup/toque-setup.sh status
@@ -16,10 +16,16 @@
 # driver, with the fixes in tools/setup/mtkclient-macos-serial.patch ('prepare' applies them and
 # the download-mode steps refuse to run without them).
 #
+# Linux: same steps. mtkclient goes through libusb by default (its usual way on Linux; --serial uses
+# /dev/ttyACM* and the same fixes instead), and 'prepare' asks for the udev rule in
+# tools/setup/51-toque-robot.rules, which gives the logged-in user access to the robot's USB port.
+# Download mode from Linux has not been tried on a real robot yet.
+#
 # Options: --work DIR (default ~/Toque), --apk FILE, --ip ROBOT_IP, --wait-seconds N (adb, default
-# 180), --mtk-timeout N (download mode, default 1800), --libusb (mtkclient through libusb instead
-# of the macOS serial driver; --serial, the default, is still accepted), --download-mode ('unroot'
-# through download mode instead of TWRP).
+# 180), --mtk-timeout N (download mode, default 1800), --libusb / --serial (how mtkclient talks to
+# the robot: libusb, or the system's serial driver; default --serial on macOS, --libusb on Linux),
+# --download-mode ('unroot' through download mode instead of TWRP), --no-udev-check (Linux: USB
+# access is set up another way than with tools/setup/51-toque-robot.rules).
 set -u
 set -o pipefail
 
@@ -30,12 +36,13 @@ APK=""
 IP=""
 WAIT_SECONDS=180
 MTK_TIMEOUT=1800
-MTK_SERIAL=1   # macOS serial driver: the only way that worked on a real robot (libusb: handshake fails)
+MTK_SERIAL=""  # 1: serial driver, 0: libusb. Default set below, by system.
+UDEV_CHECK=1
 DOWNLOAD_MODE=0
 
 usage() {
   echo "Usage: tools/setup/toque-setup.sh <step> [--work DIR] [--apk FILE] [--ip ROBOT_IP]"
-  echo "       [--wait-seconds N] [--mtk-timeout N] [--libusb] [--download-mode]"
+  echo "       [--wait-seconds N] [--mtk-timeout N] [--libusb | --serial] [--download-mode] [--no-udev-check]"
   echo "Steps: $STEPS"
 }
 opt_value() { [ $# -ge 2 ] && [ -n "$2" ] || { echo "Option $1 needs a value." >&2; usage >&2; exit 1; }; }
@@ -50,6 +57,7 @@ while [ $# -gt 0 ]; do
     --serial) MTK_SERIAL=1; shift ;;
     --libusb) MTK_SERIAL=0; shift ;;
     --download-mode) DOWNLOAD_MODE=1; shift ;;
+    --no-udev-check) UDEV_CHECK=0; shift ;;
     -h | --help) usage; exit 0 ;;
     -*) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     *)
@@ -60,6 +68,18 @@ done
 STEP=${STEP:-status}
 case " $STEPS " in *" $STEP "*) ;; *) echo "Unknown step: $STEP" >&2; usage >&2; exit 1 ;; esac
 case "$WAIT_SECONDS$MTK_TIMEOUT" in *[!0-9]*) echo "--wait-seconds and --mtk-timeout take a number of seconds." >&2; exit 1 ;; esac
+
+OS=$(uname -s)
+case "$OS" in
+  Darwin) HOST="Mac" ;;
+  Linux) HOST="computer" ;;
+  *) echo "This script runs on macOS and Linux (on Windows: tools/setup/toque-setup.ps1)." >&2; exit 1 ;;
+esac
+# macOS: the serial driver is the only way that worked on a real robot (libusb: handshake fails).
+# Linux: libusb is mtkclient's usual way.
+if [ -z "$MTK_SERIAL" ]; then
+  if [ "$OS" = Darwin ]; then MTK_SERIAL=1; else MTK_SERIAL=0; fi
+fi
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
 if [ -n "$APK" ] && [ -f "$APK" ]; then APK="$(cd "$(dirname "$APK")" && pwd -P)/$(basename "$APK")"; fi
@@ -72,6 +92,8 @@ MTK_SRC="$WORK/mtkclient/src"
 MTK_VENV="$WORK/mtkclient/venv"
 MTK_RUN="$WORK/mtkclient/run"
 MTK_PATCH="$REPO/tools/setup/mtkclient-macos-serial.patch"
+UDEV_RULE="$REPO/tools/setup/51-toque-robot.rules"
+UDEV_INSTALLED="/etc/udev/rules.d/51-toque-robot.rules"
 
 # Known-good files (SHA-256). The scatter and TWRP come from github.com/EliasKotlyar/Monsieur-Cuisine-Connect-Hack.
 MAGISK_URL="https://github.com/topjohnwu/Magisk/releases/download/v31.0/Magisk-v31.0.apk"
@@ -81,6 +103,7 @@ TWRP_SHA="fc9ac999fc3b0a6c0cb563f39359084a6fcc211aeb42e7b754990afa4b543d3e"
 TWRP_SIZE=11452416
 SCATTER_SHA="13b8260dba9e4efba874c09e35803af43cc69556ba0f1937226240b0ab318364"
 TOOLS_URL="https://dl.google.com/android/repository/platform-tools-latest-darwin.zip"
+[ "$OS" = Linux ] && TOOLS_URL="https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
 RELEASES_API="https://api.github.com/repos/Wuki60/MrCuisineVibeConnect/releases/latest"
 # mtkclient: a tag, checked against its commit (a moved tag is refused).
 MTK_URL="https://github.com/bkerler/mtkclient"
@@ -110,8 +133,13 @@ state_set() {
   mv "$STATE_FILE.tmp" "$STATE_FILE"
 }
 
-sha() { shasum -a 256 "$1" | awk '{print $1}'; }
-fsize() { stat -f %z "$1"; }
+if [ "$OS" = Darwin ]; then
+  sha() { shasum -a 256 "$1" | awk '{print $1}'; }
+  fsize() { stat -f %z "$1"; }
+else
+  sha() { sha256sum "$1" | awk '{print $1}'; }
+  fsize() { stat -c %s "$1"; }
+fi
 hex() { printf '0x%x' "$1"; }
 
 fetch() {
@@ -128,7 +156,8 @@ ADB=""
 find_adb() {
   local c
   for c in "$WORK/platform-tools/adb" "${ANDROID_HOME:-}/platform-tools/adb" \
-    "${ANDROID_SDK_ROOT:-}/platform-tools/adb" "$HOME/Library/Android/sdk/platform-tools/adb"; do
+    "${ANDROID_SDK_ROOT:-}/platform-tools/adb" "$HOME/Library/Android/sdk/platform-tools/adb" \
+    "$HOME/Android/Sdk/platform-tools/adb"; do
     [ -x "$c" ] && { printf '%s\n' "$c"; return 0; }
   done
   command -v adb
@@ -157,7 +186,11 @@ wait_adb_state() { # wait_adb_state <seconds> <state>...
     for w in "$@"; do [ "$st" = "$w" ] && { printf '%s' "$st"; return 0; }; done
     sleep 3
   done
-  adb_state
+  st=$(adb_state)
+  case "$st" in "no permissions"*)
+    fail "adb sees the robot but may not open its USB port (Linux). Install the udev rule: $(udev_command) Then unplug and replug the cable and run '$STEP' again." ;;
+  esac
+  printf '%s' "$st"
 }
 
 check_boot_image() { # check_boot_image <file> <name>
@@ -200,8 +233,16 @@ find_python() { # Python 3.10 or newer, for mtkclient
   done
   return 1
 }
-find_libusb() { # folder holding libusb-1.0.dylib (Homebrew: brew install libusb)
+find_libusb() { # folder holding libusb 1.0 (macOS: Homebrew's libusb-1.0.dylib; Linux: libusb-1.0.so.0)
   local d
+  if [ "$OS" = Linux ]; then
+    for d in /usr/lib /usr/lib64 /usr/lib/"$(uname -m)"-linux-gnu /lib/"$(uname -m)"-linux-gnu /usr/local/lib; do
+      [ -e "$d/libusb-1.0.so.0" ] && { printf '%s\n' "$d"; return 0; }
+    done
+    d=$(ldconfig -p 2> /dev/null | sed -n 's|.*=> \(/.*\)/libusb-1\.0\.so\.0$|\1|p' | head -n 1)
+    [ -n "$d" ] && { printf '%s\n' "$d"; return 0; }
+    return 1
+  fi
   for d in "${HOMEBREW_PREFIX:-/opt/homebrew}/lib" /opt/homebrew/lib /usr/local/lib /opt/homebrew/opt/libusb/lib \
     /usr/local/opt/libusb/lib /opt/local/lib; do
     [ -f "$d/libusb-1.0.dylib" ] && { printf '%s\n' "$d"; return 0; }
@@ -215,6 +256,15 @@ mtk_patched() {
   git -C "$MTK_SRC" apply --reverse --check "$MTK_PATCH" 2> /dev/null &&
     [ "$(git -C "$MTK_SRC" diff --name-only | sort)" = "$(git -C "$MTK_SRC" apply --numstat "$MTK_PATCH" | awk '{print $3}' | sort)" ]
 }
+# Linux: the udev rule that lets the logged-in user open the robot's USB port.
+udev_ok() { [ "$OS" != Linux ] || [ "$UDEV_CHECK" = 0 ] || cmp -s "$UDEV_RULE" "$UDEV_INSTALLED"; }
+udev_command() {
+  printf "sudo install -m 644 '%s' /etc/udev/rules.d/ && sudo udevadm control --reload-rules." "$UDEV_RULE"
+}
+mtk_require() {
+  mtk_ready || fail "mtkclient missing or without its macOS serial fixes: run 'prepare'."
+  udev_ok || fail "The udev rule for the robot's USB port is not installed (or differs from this repository's). The person runs: $(udev_command) Then run '$STEP' again."
+}
 mtk_ready() {
   [ -x "$MTK_VENV/bin/python" ] && [ -f "$MTK_SRC/mtk.py" ] && mtk_pinned && mtk_patched
 }
@@ -224,7 +274,8 @@ mtk_exec() {
   local lib
   lib=$(find_libusb) || lib=""
   cd "$MTK_RUN" || exit 1
-  export DYLD_FALLBACK_LIBRARY_PATH="${lib:+$lib:}${DYLD_FALLBACK_LIBRARY_PATH:-$HOME/lib:/usr/local/lib:/lib:/usr/lib}"
+  [ "$OS" = Darwin ] &&
+    export DYLD_FALLBACK_LIBRARY_PATH="${lib:+$lib:}${DYLD_FALLBACK_LIBRARY_PATH:-$HOME/lib:/usr/local/lib:/lib:/usr/lib}"
   exec "$MTK_VENV/bin/python" -s "$MTK_SRC/mtk.py" "$@"
 }
 
@@ -247,7 +298,7 @@ install_mtkclient() { # needs $PY, git and libusb
   fi
   if ! "$MTK_VENV/bin/python" -s -c 'import usb, serial, Cryptodome, colorama' > /dev/null 2>&1; then
     rm -rf "$MTK_VENV"
-    "$PY" -m venv "$MTK_VENV" || fail "Could not create a Python environment with $PY"
+    "$PY" -m venv "$MTK_VENV" || fail "Could not create a Python environment with $PY (Debian/Ubuntu: install python3-venv)."
     "$MTK_VENV/bin/python" -m pip install -q --disable-pip-version-check --require-hashes \
       --only-binary=:all: --no-deps -r "$REPO/tools/setup/mtkclient-requirements.txt" ||
       fail "Could not install mtkclient's Python packages (tools/setup/mtkclient-requirements.txt)."
@@ -268,7 +319,7 @@ run_mtk_session() { # run_mtk_session <label> <commands>
   : > "$MTK_OUT"
   say "Running mtkclient ($1): $2"
   if [ "$MTK_SERIAL" = 1 ]; then
-    say "(Through the macOS serial driver, mtkclient prints 'Handshake failed, retrying...' about every 10 seconds while it waits for the robot: that is normal.)"
+    say "(Through the serial driver, mtkclient prints 'Handshake failed, retrying...' about every 10 seconds while it waits for the robot: that is normal.)"
     (mtk_exec --serialport DETECT multi "$2") >> "$MTK_OUT" 2>&1 &
   else
     (mtk_exec multi "$2") >> "$MTK_OUT" 2>&1 &
@@ -295,7 +346,9 @@ run_mtk_session() { # run_mtk_session <label> <commands>
 }
 
 usb_hint() {
-  human "Robot switched OFF with its rear switch, USB A-A cable in the right-hand port marked 'Android USB' and in the Mac (a Mac with only USB-C ports: through a USB-C to USB-A adapter or hub; a USB-C to USB-A cable does not work). Switch the robot ON as soon as mtkclient says it is waiting for the device (it waits up to $((MTK_TIMEOUT / 60)) minutes). If macOS asks to allow the accessory to connect, click Allow, then switch the robot off and on again."
+  local extra=""
+  [ "$OS" = Darwin ] && extra=" If macOS asks to allow the accessory to connect, click Allow, then switch the robot off and on again."
+  human "Robot switched OFF with its rear switch, USB A-A cable in the right-hand port marked 'Android USB' and in the $HOST (a $HOST with only USB-C ports: through a USB-C to USB-A adapter or hub; a USB-C to USB-A cable does not work). Switch the robot ON as soon as mtkclient says it is waiting for the device (it waits up to $((MTK_TIMEOUT / 60)) minutes).$extra"
 }
 
 # Writes images in download mode and reads each one back in the same session.
@@ -355,6 +408,50 @@ twrp_write() { # twrp_write <partition> <image> <allowed> [<partition> <image> <
 content_of() { printf '%s:%s' "$(fsize "$1")" "$(sha "$1")"; }
 twrp_content() { printf '%s:%s' "$TWRP_SIZE" "$TWRP_SHA"; }
 
+# How to install a missing tool, by system.
+pkg_hint() { # pkg_hint python|libusb|git
+  if [ "$OS" = Darwin ]; then
+    case "$1" in
+      python) echo "Install it with Homebrew: brew install python" ;;
+      libusb) echo "Install it with Homebrew: brew install libusb" ;;
+      git) echo "Install Apple's command line tools: xcode-select --install" ;;
+    esac
+  else
+    case "$1" in
+      python) echo "Arch: sudo pacman -S python; Debian/Ubuntu: sudo apt install python3 python3-venv; Fedora: sudo dnf install python3" ;;
+      libusb) echo "Arch: sudo pacman -S libusb; Debian/Ubuntu: sudo apt install libusb-1.0-0; Fedora: sudo dnf install libusb1" ;;
+      git) echo "Arch: sudo pacman -S git; Debian/Ubuntu: sudo apt install git; Fedora: sudo dnf install git" ;;
+    esac
+  fi
+}
+
+# "<tag> <asset name> <url>" of the Toque APK in a GitHub release (JSON file); nothing if there is none.
+release_apk() {
+  local rel=$1 tag count i name
+  if [ "$OS" = Darwin ]; then
+    tag=$(plutil -extract tag_name raw "$rel" 2> /dev/null)
+    count=$(plutil -extract assets raw "$rel" 2> /dev/null) || count=0
+    i=0
+    while [ "$i" -lt "$count" ]; do
+      name=$(plutil -extract "assets.$i.name" raw "$rel" 2> /dev/null)
+      case "$name" in Toque-*.apk)
+        printf '%s %s %s\n' "$tag" "$name" "$(plutil -extract "assets.$i.browser_download_url" raw "$rel" 2> /dev/null)"
+        return ;;
+      esac
+      i=$((i + 1))
+    done
+  else
+    python3 -I -c '
+import json, sys
+rel = json.load(open(sys.argv[1]))
+for a in rel.get("assets", []):
+    if a["name"].startswith("Toque-") and a["name"].endswith(".apk"):
+        print(rel["tag_name"], a["name"], a["browser_download_url"])
+        break
+' "$rel" 2> /dev/null
+  fi
+}
+
 # ---------------------------------------------------------------- steps
 
 step_status() {
@@ -362,11 +459,14 @@ step_status() {
   say "Work folder: $WORK"
   [ -f "$STATE_FILE" ] && done_steps=$(sed -n 's/^done-\([^=]*\)=.*/\1/p' "$STATE_FILE" | paste -sd ',' - | sed 's/,/, /g')
   say "Done steps: $done_steps"
-  py=$(find_python) || py="missing (brew install python)"
+  py=$(find_python) || py="missing ($(pkg_hint python))"
   say "Python 3.10+: $py"
-  lib=$(find_libusb) || lib="missing (brew install libusb)"
+  lib=$(find_libusb) || lib="missing ($(pkg_hint libusb))"
   say "libusb: $lib"
-  if mtk_ready; then say "mtkclient: $MTK_TAG + macOS serial fixes"; else say "mtkclient: not installed or not patched ('prepare')"; fi
+  if [ "$OS" = Linux ] && [ "$UDEV_CHECK" = 1 ]; then
+    if udev_ok; then say "udev rule: $UDEV_INSTALLED"; else say "udev rule: not installed ($(udev_command))"; fi
+  fi
+  if mtk_ready; then say "mtkclient: $MTK_TAG + macOS serial fixes, through $([ "$MTK_SERIAL" = 1 ] && echo "the serial driver" || echo libusb)"; else say "mtkclient: not installed or not patched ('prepare')"; fi
   if ADB=$(find_adb); then say "adb state: $(adb_state)"; else ADB=""; say "adb: missing ('prepare')"; fi
   for o in prepare backup flash-twrp root flash-root android install wifi; do
     state_has "done-$o" || { say "Next step: $o"; return; }
@@ -375,11 +475,15 @@ step_status() {
 }
 
 step_prepare() {
-  local missing=0 zip tmp twrp scatter rel count i name url tag
+  local missing=0 zip tmp twrp scatter rel name url tag
   mkdir -p "$WORK" "$DOWNLOADS" "$BACKUP"
 
   # Android platform tools (adb)
-  if [ ! -x "$WORK/platform-tools/adb" ]; then
+  if [ "$OS" = Linux ] && [ "$(uname -m)" != x86_64 ]; then
+    # Google only publishes platform tools for x86_64 Linux.
+    command -v adb > /dev/null 2>&1 ||
+      fail "adb missing. Install it from your distribution (Debian/Ubuntu: sudo apt install adb; Arch: sudo pacman -S android-tools), then run 'prepare' again."
+  elif [ ! -x "$WORK/platform-tools/adb" ]; then
     zip="$DOWNLOADS/platform-tools.zip"
     fetch "$TOOLS_URL" "$zip"
     unzip -q -o "$zip" -d "$WORK" || fail "Could not extract $zip"
@@ -417,18 +521,9 @@ step_prepare() {
   if [ -z "$APK" ]; then
     rel="$DOWNLOADS/latest-release.json"
     if curl -fsSL --proto '=https' -A toque-setup -o "$rel" "$RELEASES_API"; then
-      tag=$(plutil -extract tag_name raw "$rel" 2> /dev/null)
-      count=$(plutil -extract assets raw "$rel" 2> /dev/null) || count=0
-      url=""
-      i=0
-      while [ "$i" -lt "$count" ]; do
-        name=$(plutil -extract "assets.$i.name" raw "$rel" 2> /dev/null)
-        case "$name" in Toque-*.apk)
-          url=$(plutil -extract "assets.$i.browser_download_url" raw "$rel" 2> /dev/null)
-          break ;;
-        esac
-        i=$((i + 1))
-      done
+      tag="" name="" url=""
+      read -r tag name url < <(release_apk "$rel") || true
+      case "$name" in */* | "") url="" ;; esac
       if [ -n "$url" ]; then
         [ -f "$DOWNLOADS/$name" ] || fetch "$url" "$DOWNLOADS/$name"
         ok "Toque $tag: $DOWNLOADS/$name"
@@ -440,12 +535,13 @@ step_prepare() {
     fi
   fi
 
-  # mtkclient, for the robot's download mode (replaces SP Flash Tool; no driver on macOS).
-  PY=$(find_python) || { missing=1; say "MISSING: Python 3.10 or newer. Install it with Homebrew: brew install python"; }
-  find_libusb > /dev/null || { missing=1; say "MISSING: libusb. Install it with Homebrew: brew install libusb"; }
+  # mtkclient, for the robot's download mode (replaces SP Flash Tool; no driver on macOS or Linux).
+  PY=$(find_python) || { missing=1; say "MISSING: Python 3.10 or newer. $(pkg_hint python)"; }
+  find_libusb > /dev/null || { missing=1; say "MISSING: libusb. $(pkg_hint libusb)"; }
   if ! { command -v git && git --version; } > /dev/null 2>&1; then
-    missing=1; say "MISSING: git. Install Apple's command line tools: xcode-select --install"
+    missing=1; say "MISSING: git. $(pkg_hint git)"
   fi
+  udev_ok || { missing=1; human "MISSING: the udev rule that gives access to the robot's USB port (it asks for your password): $(udev_command)"; }
   if [ "$missing" = 1 ]; then say "Install the missing tools, then run 'prepare' again."; exit 3; fi
   install_mtkclient
   state_set done-prepare "$(now)"
@@ -455,9 +551,9 @@ step_prepare() {
 step_backup() {
   local boot="$BACKUP/boot-original.img" rec="$BACKUP/recovery-original.img"
   if [ ! -f "$boot" ] || [ ! -f "$rec" ]; then
-    mtk_ready || fail "mtkclient missing or without its macOS serial fixes: run 'prepare'."
+    mtk_require
     check_layout
-    human "Switch the robot OFF with its rear switch (it can stay plugged into the mains). Unscrew the maintenance cover under the robot (small Torx). Plug the USB A-A cable into the RIGHT-HAND port marked 'Android USB' (never the other one: it can destroy the board) and into the Mac."
+    human "Switch the robot OFF with its rear switch (it can stay plugged into the mains). Unscrew the maintenance cover under the robot (small Torx). Plug the USB A-A cable into the RIGHT-HAND port marked 'Android USB' (never the other one: it can destroy the board) and into the $HOST."
     usb_hint
     rm -f "$MTK_RUN/boot-original.img" "$MTK_RUN/recovery-original.img"
     run_mtk_session backup "ro $BOOT_OFFSET $(hex $PARTITION_SIZE) boot-original.img --parttype user;ro $RECOVERY_OFFSET $(hex $PARTITION_SIZE) recovery-original.img --parttype user"
@@ -485,7 +581,7 @@ step_backup() {
 step_flash_twrp() {
   state_has done-backup || fail "Run 'backup' first: never flash without the backups."
   check_twrp
-  mtk_ready || fail "mtkclient missing or without its macOS serial fixes: run 'prepare'."
+  mtk_require
   check_layout
   mtk_write_verified flash-twrp boot "$HACK/recovery.img"
   mtk_check_written boot "$HACK/recovery.img"
@@ -613,7 +709,7 @@ step_unroot() {
       fail "The backups differ from the ones verified by 'backup': restore them from your second copy."
   fi
   if [ "$DOWNLOAD_MODE" = 1 ]; then
-    mtk_ready || fail "mtkclient missing or without its macOS serial fixes: run 'prepare'."
+    mtk_require
     check_layout
     mtk_write_verified unroot boot "$boot" recovery "$rec"
     mtk_check_written boot "$boot"
