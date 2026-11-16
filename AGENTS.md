@@ -88,7 +88,8 @@ Everything is driven by one script, from the repository folder:
 bash tools/setup/toque-setup.sh <step>
 ```
 
-Work folder: `~/Toque` (change with `--work DIR`). Every step can be re-run; `status` says what
+Work folder: `~/Toque`, or a `Toque` folder next to the repository if there is one (change with
+`--work DIR`; `status` prints it). Every step can be re-run; `status` says what
 is done and what comes next. Output lines:
 
 - `OK:` done and verified;

@@ -21,7 +21,8 @@
 # tools/setup/51-toque-robot.rules, which gives the logged-in user access to the robot's USB port.
 # Download mode from Linux has not been tried on a real robot yet.
 #
-# Options: --work DIR (default ~/Toque), --apk FILE, --ip ROBOT_IP, --wait-seconds N (adb, default
+# Options: --work DIR (default: a "Toque" folder next to this repository if there is one, else
+# ~/Toque), --apk FILE, --ip ROBOT_IP, --wait-seconds N (adb, default
 # 180), --mtk-timeout N (download mode, default 1800), --libusb / --serial (how mtkclient talks to
 # the robot: libusb, or the system's serial driver; default --serial on macOS, --libusb on Linux),
 # --download-mode ('unroot' through download mode instead of TWRP), --no-udev-check (Linux: USB
@@ -31,7 +32,7 @@ set -o pipefail
 
 STEPS="status prepare backup flash-twrp root flash-root android install wifi unroot"
 STEP=""
-WORK="$HOME/Toque"
+WORK=""
 APK=""
 IP=""
 WAIT_SECONDS=180
@@ -82,6 +83,10 @@ if [ -z "$MTK_SERIAL" ]; then
 fi
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
+if [ -z "$WORK" ]; then
+  # A "Toque" folder next to the repository (both kept in one parent folder), else ~/Toque.
+  if [ -d "$(dirname "$REPO")/Toque" ]; then WORK="$(dirname "$REPO")/Toque"; else WORK="$HOME/Toque"; fi
+fi
 if [ -n "$APK" ] && [ -f "$APK" ]; then APK="$(cd "$(dirname "$APK")" && pwd -P)/$(basename "$APK")"; fi
 DOWNLOADS="$WORK/downloads"
 BACKUP="$WORK/backup"
