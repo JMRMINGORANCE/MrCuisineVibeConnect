@@ -314,6 +314,7 @@ Lidl's servers; come back with the **"Back to Toque"** button. If that import fa
 | `flash-root`: *write failed* or *read-back differs* | Write error | **Do not switch the robot off** (TWRP is still running). Run `flash-root` again |
 | `flash-root`: *holds something unexpected* | Unexpected content on the robot | Nothing was written. Do not continue: `status`, and ask for help |
 | `android`: the **Grant** tap was missed | Magisk's prompt closes after 10 s | Run `android` again and tap quickly. Refused for good: Magisk app › Superuser › Shell › allow |
+| adb: *more than one device/emulator* | After `wifi`, with the cable still plugged in, adb sees the robot twice | Unplug the cable, or run `adb disconnect <robot IP address>:5555` |
 | Toque shows "No base" (no motor link) | Magisk's busybox missing | Run `install` again |
 | Magisk messages saying Toque was denied superuser rights | Magisk setting | Run `install` again |
 | Stuck in the stock app | Normal, no Back button on this robot | **"Back to Toque"** button |
@@ -344,7 +345,8 @@ Nothing is written as long as the Mac cannot reach the robot. In order:
 - **Also remove root and TWRP** (after the line above): `bash tools/setup/toque-setup.sh unroot`
   puts your backups `boot-original.img` and `recovery-original.img` back on the robot, from TWRP.
   If the robot no longer starts at all: `unroot --download-mode` (robot off, cable in, like
-  `backup`).
+  `backup`). What stays on the robot afterwards: adb remains enabled (USB, and port 5555 if you ran
+  `wifi`), without root, and the Magisk app remains installed, without effect.
 
 ## 7. Technical details
 
@@ -417,8 +419,9 @@ Only on the home network: any device connected to it could then reach the robot.
 ## 8. From a Linux PC
 
 The same script and the same steps work from Linux (x86_64 or ARM). **Tried once on a real robot**, from
-Arch Linux on an x86_64 laptop: `prepare` to `wifi` and `unroot` all worked, through libusb.
-Not tried yet from Linux: `unroot --download-mode`, the `--serial` option, and ARM.
+Arch Linux on an x86_64 laptop: `prepare` to `wifi` and `unroot` all worked, through libusb;
+`backup` and `flash-twrp` also worked with `--serial`. Not tried yet from Linux:
+`unroot --download-mode`, and ARM.
 
 Instead of part 2:
 
@@ -446,5 +449,7 @@ Then follow part 3a or 3b as written, reading "computer" for "Mac". What differs
 - To see whether the computer sees the robot in download mode: `lsusb` right after switching it on
   must list `0e8d:2000` (MediaTek). If not, it is the cable, the port or the adapter. In TWRP the
   robot shows as `18d1:4ee2`, in Android with adb as `0e8d:201d` (`0e8d:2008` before the root).
+- `sudo dmesg` repeats *new low-speed USB device* and *device descriptor read/64, error -71*: the
+  cable is not pushed in all the way. Unplug it and plug it in again.
 - `adb` says *no permissions*: the udev rule is missing; install it, then unplug and replug the cable.
 - On ARM Linux, Google publishes no adb: install your distribution's (`adb` or `android-tools`).

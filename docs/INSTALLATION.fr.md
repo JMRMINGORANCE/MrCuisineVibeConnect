@@ -318,6 +318,7 @@ d'origine »** la laisse se synchroniser avec les serveurs Lidl ; revenez avec l
 | `flash-root` : *write failed* ou *read-back differs* | Erreur d'écriture | **Ne pas éteindre le robot** (TWRP tourne toujours). Relancer `flash-root` |
 | `flash-root` : *holds something unexpected* | Contenu inattendu sur le robot | Rien n'a été écrit. Ne pas continuer : `status`, et demander de l'aide |
 | `android` : l'appui sur **Autoriser** a été raté | La fenêtre de Magisk se ferme après 10 s | Relancer `android` et appuyer vite. Refusé pour de bon : appli Magisk › Superutilisateur › Shell › autoriser |
+| adb : *more than one device/emulator* | Après `wifi`, câble encore branché, adb voit le robot deux fois | Débrancher le câble, ou lancer `adb disconnect <adresse IP du robot>:5555` |
 | Toque affiche « Base absente » | Busybox de Magisk manquante | Relancer `install` |
 | Messages « Toque s'est vu refuser les droits » | Réglage de Magisk | Relancer `install` |
 | Bloqué dans l'appli d'origine | Normal, pas de bouton Retour sur ce robot | Bouton **« Retour à Toque »** |
@@ -352,6 +353,8 @@ Rien n'est écrit tant que le Mac ne joint pas le robot. Dans l'ordre :
   `bash tools/setup/toque-setup.sh unroot` remet vos sauvegardes `boot-original.img` et
   `recovery-original.img` sur le robot, depuis TWRP. Si le robot ne démarre plus du tout :
   `unroot --download-mode` (robot éteint, câble branché, comme pour `backup`).
+  Ce qui reste ensuite sur le robot : adb reste activé (USB, et port 5555 si vous avez fait
+  `wifi`), sans root, et l'appli Magisk reste installée, sans effet.
 
 ## 7. Détails techniques
 
@@ -428,8 +431,8 @@ alors accéder au robot.
 
 Le même script et les mêmes étapes fonctionnent sous Linux (x86_64 ou ARM). **Essayé une fois sur un
 vrai robot**, depuis Arch Linux sur un portable x86_64 : de `prepare` à `wifi`, puis
-`unroot`, tout a fonctionné, par libusb. Pas encore essayés depuis Linux :
-`unroot --download-mode`, l'option `--serial` et ARM.
+`unroot`, tout a fonctionné, par libusb ; `backup` et `flash-twrp` ont aussi fonctionné avec
+`--serial`. Pas encore essayés depuis Linux : `unroot --download-mode` et ARM.
 
 À la place de la partie 2 :
 
@@ -458,6 +461,8 @@ Suivez ensuite la partie 3a ou 3b telle quelle, en lisant « ordinateur » pour 
   doit lister `0e8d:2000` (MediaTek). Sinon, c'est le câble, le port ou l'adaptateur. Sous TWRP,
   le robot apparaît en `18d1:4ee2` ; sous Android avec adb, en `0e8d:201d` (`0e8d:2008` avant le
   root).
+- `sudo dmesg` répète *new low-speed USB device* et *device descriptor read/64, error -71* : le
+  câble n'est pas enfoncé à fond. Débranchez-le et rebranchez-le.
 - `adb` répond *no permissions* : la règle udev manque ; installez-la, puis débranchez et
   rebranchez le câble.
 - Sous Linux ARM, Google ne publie pas adb : installez celui de votre distribution (`adb` ou

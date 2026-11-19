@@ -39,7 +39,8 @@ person this before starting.
 
 **Linux.** The same script runs on a Linux PC: see [On Linux](#on-linux) for what differs.
 It was run **once** on a real robot (Arch Linux, x86_64, through libusb), from `prepare` to
-`wifi`, then `unroot`; `unroot --download-mode`, `--serial` and ARM were not tried from Linux. Tell the person this
+`wifi`, then `unroot`, and `backup` and `flash-twrp` with `--serial`; `unroot --download-mode` and
+ARM were not tried from Linux. Tell the person this
 instead of the Mac sentence above.
 
 ## Rules for the agent
@@ -234,6 +235,11 @@ and without macFUSE the FUSE package stops mtkclient from starting
   restarts the robot into TWRP and writes `boot-original.img` into `boot` and
   `recovery-original.img` into `recovery`, with the same checks as `flash-root`. If the robot no
   longer starts at all: `unroot --download-mode` (robot off, cable in, like `backup`).
+  `unroot` leaves what `root` changed in `/system` (adb stays enabled, without root) and the Magisk
+  app. Running `root` again afterwards overwrites the saved `system-originals/orig/build.prop` with
+  the already modified one: copy that folder elsewhere first.
+- After `wifi`, with the cable still in, adb lists the robot twice and commands without `--ip`
+  fail with *more than one device/emulator*: `adb disconnect <ip>:5555`, or have the cable unplugged.
 
 ## After the install
 
