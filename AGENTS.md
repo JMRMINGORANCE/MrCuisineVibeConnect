@@ -38,8 +38,9 @@ if download mode does not work from the Mac, see
 person this before starting.
 
 **Linux.** The same script runs on a Linux PC: see [On Linux](#on-linux) for what differs.
-`prepare` and the checks were run there; download mode was **not** tried on a real robot from
-Linux. Tell the person this instead of the Mac sentence above.
+It was run **once** on a real robot (Arch Linux, x86_64, through libusb), from `prepare` to
+`wifi`; `unroot`, `--serial` and ARM were not tried from Linux. Tell the person this
+instead of the Mac sentence above.
 
 ## Rules for the agent
 
@@ -118,7 +119,7 @@ step, have the person switch it off. `ls /dev/cu.usbmodem*` lists nothing once i
 | 0 | clone | agent | Get this repository on the Mac (git clone or a ZIP). |
 | 1 | `prepare` | agent | Downloads adb, Magisk v31.0, TWRP and the scatter file, the latest Toque APK, mtkclient v2.1.4.1 and its Python packages (into `~/Toque/mtkclient`); checks every SHA-256 and the mtkclient commit, applies the macOS serial fixes. Says which Homebrew packages are missing, if any. |
 | 2 | `backup` | person, then agent | Cover off, cable in the **right-hand "Android USB" port**, robot off; mtkclient reads `boot` and `recovery` when the person switches the robot on. Verifies two 16 MiB Android images before keeping them. |
-| 3 | `flash-twrp` | agent + person | Writes TWRP into `boot` in download mode and reads it back. The person power-cycles: off, **unplug**, on, plug back → TWRP. |
+| 3 | `flash-twrp` | agent + person | Writes TWRP into `boot` in download mode and reads it back. The person power-cycles: off, **unplug**, on, plug back → TWRP. The first time, TWRP asks *Keep System Read only?*: the person taps **Keep Read Only**. |
 | 4 | `root` | agent | In TWRP: patches the *original* boot with Magisk, enables ADB in Android, authorizes the Mac's ADB key, pulls `boot-magisk.img`. |
 | 5 | `flash-root` | agent | Still in TWRP: writes TWRP into `recovery` and `boot-magisk.img` into `boot`. Checks first that both partitions hold what they should (else writes nothing), reads each one back. Power cycle as above → stock app. |
 | 6 | `android` | agent + person | Checks Magisk, installs its app; the person taps **Grant** on the robot once. Checks the boot partition. |
@@ -180,7 +181,10 @@ Everything above applies, reading "computer" for "Mac", with these differences:
   fails, have the person switch the robot off and run the step again with `--serial`
   (`/dev/ttyACM*`, with the same fixes as on macOS). `status` says which one is in use.
 - **Is the robot seen?** `lsusb` right after switching it on lists `0e8d:2000`; `ls /dev/ttyACM*`
-  lists nothing once it is really off. There is no *Allow accessory* prompt.
+  lists nothing once it is really off. There is no *Allow accessory* prompt. Other modes: TWRP is
+  `18d1:4ee2`, Android with adb `0e8d:201d` (`0e8d:2008`, MTP only, before the root).
+- The kernel's `cdc_acm` driver creates `/dev/ttyACM0` in download mode and logs *Zero length
+  descriptor references*: harmless, libusb still works.
 - `adb` state *no permissions*: the udev rule is missing; the step says so.
 - On ARM Linux, `prepare` uses the distribution's adb (Google publishes none).
 - If download mode does not work from Linux either, the Windows fallback of step 3 above applies.

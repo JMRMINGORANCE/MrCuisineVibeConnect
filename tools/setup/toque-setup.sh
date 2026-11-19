@@ -591,7 +591,7 @@ step_flash_twrp() {
   mtk_write_verified flash-twrp boot "$HACK/recovery.img"
   mtk_check_written boot "$HACK/recovery.img"
   state_set done-flash-twrp "$(now)"
-  human "Switch the robot OFF, UNPLUG the USB cable, switch it ON: TWRP (a blue/black recovery screen) appears. Then plug the cable back in. (Switched on with the cable in, the robot stops on a battery screen.)"
+  human "Switch the robot OFF, UNPLUG the USB cable, switch it ON: TWRP (a blue/black recovery screen) appears. If it asks 'Keep System Read only?', tap 'Keep Read Only'. Then plug the cable back in. (Switched on with the cable in, the robot stops on a battery screen.)"
   ok "flash-twrp done. Next: root (with TWRP on the robot's screen)"
 }
 

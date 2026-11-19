@@ -24,7 +24,7 @@ uses **the official Lidl recipes**.
 ## Install
 
 **Start here: [docs/INSTALLATION.md](docs/INSTALLATION.md)**, a step-by-step guide that starts from
-zero, for a Mac (and, [not yet tried in download mode](docs/INSTALLATION.md#8-from-a-linux-pc), a
+zero, for a Mac (and, [tried once](docs/INSTALLATION.md#8-from-a-linux-pc), a
 Linux PC). On Windows, follow the
 [original repository's guide](https://github.com/Wuki60/MrCuisineVibeConnect/blob/main/docs/INSTALLATION.md).
 

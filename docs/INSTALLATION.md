@@ -193,7 +193,8 @@ Writes to the robot: TWRP, a maintenance system, temporarily replaces the normal
 ✅ At the end: `OK: flash-twrp done`
 
 4. **Switch** the robot **off**, **unplug** the cable, **switch it on**: the **TWRP** screen
-   appears. **Plug** the cable back in.
+   appears. The first time, TWRP asks *Keep System Read only?*: tap **Keep Read Only** (do not
+   swipe). **Plug** the cable back in.
 
 ### Step 4 · Prepare root — `root`
 
@@ -415,9 +416,9 @@ Only on the home network: any device connected to it could then reach the robot.
 
 ## 8. From a Linux PC
 
-The same script and the same steps work from Linux (x86_64 or ARM). **Download mode (`backup`,
-`flash-twrp`) has not been tried on a real robot from Linux yet**: `prepare` and the checks have.
-`backup` only reads, so it is a safe first test.
+The same script and the same steps work from Linux (x86_64 or ARM). **Tried once on a real robot**, from
+Arch Linux on an x86_64 laptop: `prepare` to `wifi` all worked, through libusb. Not tried yet
+from Linux: `unroot`, the `--serial` option, and ARM.
 
 Instead of part 2:
 
@@ -443,6 +444,7 @@ Then follow part 3a or 3b as written, reading "computer" for "Mac". What differs
   `backup` stops on a handshake or *Sync error*, switch the robot off and try again with `--serial`
   (it uses `/dev/ttyACM0` and the same fixes as on a Mac).
 - To see whether the computer sees the robot in download mode: `lsusb` right after switching it on
-  must list `0e8d:2000` (MediaTek). If not, it is the cable, the port or the adapter.
+  must list `0e8d:2000` (MediaTek). If not, it is the cable, the port or the adapter. In TWRP the
+  robot shows as `18d1:4ee2`, in Android with adb as `0e8d:201d` (`0e8d:2008` before the root).
 - `adb` says *no permissions*: the udev rule is missing; install it, then unplug and replug the cable.
 - On ARM Linux, Google publishes no adb: install your distribution's (`adb` or `android-tools`).

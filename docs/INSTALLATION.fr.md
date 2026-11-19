@@ -195,7 +195,8 @@ il est resté en mode téléchargement).
 ✅ À la fin : `OK: flash-twrp done`
 
 4. **Éteignez** le robot, **débranchez** le câble, **rallumez** : l'écran de **TWRP** apparaît.
-   **Rebranchez** le câble.
+   La première fois, TWRP demande *Keep System Read only?* : touchez **Keep Read Only** (ne faites
+   pas glisser le curseur). **Rebranchez** le câble.
 
 ### Étape 4 · Préparer le root — `root`
 
@@ -425,9 +426,9 @@ alors accéder au robot.
 
 ## 8. Depuis un PC Linux
 
-Le même script et les mêmes étapes fonctionnent sous Linux (x86_64 ou ARM). **Le mode download
-(`backup`, `flash-twrp`) n'a pas encore été essayé sur un vrai robot depuis Linux** : `prepare` et
-les vérifications, oui. `backup` ne fait que lire : c'est un premier essai sans risque.
+Le même script et les mêmes étapes fonctionnent sous Linux (x86_64 ou ARM). **Essayé une fois sur un
+vrai robot**, depuis Arch Linux sur un portable x86_64 : de `prepare` à `wifi`, tout a
+fonctionné, par libusb. Pas encore essayés depuis Linux : `unroot`, l'option `--serial` et ARM.
 
 À la place de la partie 2 :
 
@@ -453,7 +454,9 @@ Suivez ensuite la partie 3a ou 3b telle quelle, en lisant « ordinateur » pour 
   s'arrête sur le handshake ou sur *Sync error*, éteignez le robot et réessayez avec `--serial`
   (il passe par `/dev/ttyACM0`, avec les mêmes correctifs que sur Mac).
 - Pour savoir si l'ordinateur voit le robot en mode download : `lsusb`, juste après l'allumage,
-  doit lister `0e8d:2000` (MediaTek). Sinon, c'est le câble, le port ou l'adaptateur.
+  doit lister `0e8d:2000` (MediaTek). Sinon, c'est le câble, le port ou l'adaptateur. Sous TWRP,
+  le robot apparaît en `18d1:4ee2` ; sous Android avec adb, en `0e8d:201d` (`0e8d:2008` avant le
+  root).
 - `adb` répond *no permissions* : la règle udev manque ; installez-la, puis débranchez et
   rebranchez le câble.
 - Sous Linux ARM, Google ne publie pas adb : installez celui de votre distribution (`adb` ou
