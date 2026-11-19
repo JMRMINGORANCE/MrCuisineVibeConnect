@@ -37,6 +37,12 @@ if download mode does not work from the Mac, see
 [When mtkclient does not reach the robot](#when-mtkclient-does-not-reach-the-robot). Tell the
 person this before starting.
 
+**Linux.** The same script runs on a Linux PC: see [On Linux](#on-linux) for what differs.
+It was run **once** on a real robot (Arch Linux, x86_64, through libusb), from `prepare` to
+`wifi`, then `unroot`, and `backup` and `flash-twrp` with `--serial`; `unroot --download-mode` and
+ARM were not tried from Linux. Tell the person this
+instead of the Mac sentence above.
+
 ## Rules for the agent
 
 - **Talk to the person in their language**, in short messages. Before starting, tell them what
@@ -84,7 +90,8 @@ Everything is driven by one script, from the repository folder:
 bash tools/setup/toque-setup.sh <step>
 ```
 
-Work folder: `~/Toque` (change with `--work DIR`). Every step can be re-run; `status` says what
+Work folder: `~/Toque`, or a `Toque` folder next to the repository if there is one (change with
+`--work DIR`; `status` prints it). Every step can be re-run; `status` says what
 is done and what comes next. Output lines:
 
 - `OK:` done and verified;
@@ -113,7 +120,7 @@ step, have the person switch it off. `ls /dev/cu.usbmodem*` lists nothing once i
 | 0 | clone | agent | Get this repository on the Mac (git clone or a ZIP). |
 | 1 | `prepare` | agent | Downloads adb, Magisk v31.0, TWRP and the scatter file, the latest Toque APK, mtkclient v2.1.4.1 and its Python packages (into `~/Toque/mtkclient`); checks every SHA-256 and the mtkclient commit, applies the macOS serial fixes. Says which Homebrew packages are missing, if any. |
 | 2 | `backup` | person, then agent | Cover off, cable in the **right-hand "Android USB" port**, robot off; mtkclient reads `boot` and `recovery` when the person switches the robot on. Verifies two 16 MiB Android images before keeping them. |
-| 3 | `flash-twrp` | agent + person | Writes TWRP into `boot` in download mode and reads it back. The person power-cycles: off, **unplug**, on, plug back → TWRP. |
+| 3 | `flash-twrp` | agent + person | Writes TWRP into `boot` in download mode and reads it back. The person power-cycles: off, **unplug**, on, plug back → TWRP. The first time, TWRP asks *Keep System Read only?*: the person taps **Keep Read Only**. |
 | 4 | `root` | agent | In TWRP: patches the *original* boot with Magisk, enables ADB in Android, authorizes the Mac's ADB key, pulls `boot-magisk.img`. |
 | 5 | `flash-root` | agent | Still in TWRP: writes TWRP into `recovery` and `boot-magisk.img` into `boot`. Checks first that both partitions hold what they should (else writes nothing), reads each one back. Power cycle as above → stock app. |
 | 6 | `android` | agent + person | Checks Magisk, installs its app; the person taps **Grant** on the robot once. Checks the boot partition. |
@@ -159,11 +166,35 @@ In order:
 
 Nothing is ever written when mtkclient cannot connect.
 
+### On Linux
+
+Everything above applies, reading "computer" for "Mac", with these differences:
+
+- **Packages** instead of Homebrew: Python 3.10+ (with `venv`), libusb 1.0, git, curl, unzip.
+  `prepare` prints the command for Arch, Debian/Ubuntu and Fedora. The person runs `sudo` commands.
+- **udev rule**: `prepare` stops (exit code 3) until the person has installed
+  [tools/setup/51-toque-robot.rules](tools/setup/51-toque-robot.rules) with the `sudo` command it
+  prints. The rule gives the user logged in at the computer (not an SSH session) access to the
+  robot's USB port, for mtkclient and adb, and keeps ModemManager away from it. Download-mode steps
+  refuse to run without it; `--no-udev-check` is for a person who set up USB access another way.
+- **Transport**: mtkclient goes through **libusb** by default (its usual way on Linux), so the
+  output shows no *Handshake failed, retrying...* lines while it waits. If it sees the robot but
+  fails, have the person switch the robot off and run the step again with `--serial`
+  (`/dev/ttyACM*`, with the same fixes as on macOS). `status` says which one is in use.
+- **Is the robot seen?** `lsusb` right after switching it on lists `0e8d:2000`; `ls /dev/ttyACM*`
+  lists nothing once it is really off. There is no *Allow accessory* prompt. Other modes: TWRP is
+  `18d1:4ee2`, Android with adb `0e8d:201d` (`0e8d:2008`, MTP only, before the root).
+- The kernel's `cdc_acm` driver creates `/dev/ttyACM0` in download mode and logs *Zero length
+  descriptor references*: harmless, libusb still works.
+- `adb` state *no permissions*: the udev rule is missing; the step says so.
+- On ARM Linux, `prepare` uses the distribution's adb (Google publishes none).
+- If download mode does not work from Linux either, the Windows fallback of step 3 above applies.
+
 ### Files the script downloads by itself
 
 | File | Source | Check |
 |---|---|---|
-| Android platform tools (adb) | `https://dl.google.com/android/repository/platform-tools-latest-darwin.zip` | (latest, from Google) |
+| Android platform tools (adb) | `https://dl.google.com/android/repository/platform-tools-latest-darwin.zip` (Linux: `…-latest-linux.zip`) | (latest, from Google) |
 | Magisk v31.0 | `https://github.com/topjohnwu/Magisk/releases/download/v31.0/Magisk-v31.0.apk` | SHA-256 `2c8a488b9a5293e578e95ae4f07e3c57aba4feec4a52ca4dd852a2692d6dd4e8` |
 | TWRP `hacks/recovery.img` | [EliasKotlyar/Monsieur-Cuisine-Connect-Hack](https://github.com/EliasKotlyar/Monsieur-Cuisine-Connect-Hack) | SHA-256 `fc9ac999fc3b0a6c0cb563f39359084a6fcc211aeb42e7b754990afa4b543d3e` |
 | Scatter `l706_dfbh_v_695scatter.txt` | same repository | SHA-256 `13b8260dba9e4efba874c09e35803af43cc69556ba0f1937226240b0ab318364`; `boot` at `0x1d20000` and `recovery` at `0x2d20000` (16 MiB each) are checked in it |
@@ -204,6 +235,11 @@ and without macFUSE the FUSE package stops mtkclient from starting
   restarts the robot into TWRP and writes `boot-original.img` into `boot` and
   `recovery-original.img` into `recovery`, with the same checks as `flash-root`. If the robot no
   longer starts at all: `unroot --download-mode` (robot off, cable in, like `backup`).
+  `unroot` leaves what `root` changed in `/system` (adb stays enabled, without root) and the Magisk
+  app. Running `root` again afterwards overwrites the saved `system-originals/orig/build.prop` with
+  the already modified one: copy that folder elsewhere first.
+- After `wifi`, with the cable still in, adb lists the robot twice and commands without `--ip`
+  fail with *more than one device/emulator*: `adb disconnect <ip>:5555`, or have the cable unplugged.
 
 ## After the install
 

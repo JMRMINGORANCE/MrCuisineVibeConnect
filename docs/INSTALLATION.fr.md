@@ -5,7 +5,8 @@
 Ce guide part de zéro : pas besoin de savoir programmer. Il faut un Mac, un câble, un tournevis et
 1 à 2 heures (surtout de l'attente). **Lisez-le une fois en entier avant de commencer.**
 
-Sur un PC Windows, ce guide ne s'applique pas : suivez celui du
+Sur un **PC Linux**, le même script fonctionne : lisez d'abord la [partie 8](#8-depuis-un-pc-linux),
+qui remplace la partie 2. Sur un PC Windows, ce guide ne s'applique pas : suivez celui du
 [dépôt d'origine](https://github.com/Wuki60/MrCuisineVibeConnect/blob/main/docs/INSTALLATION.fr.md).
 
 ## Sommaire
@@ -17,6 +18,7 @@ Sur un PC Windows, ce guide ne s'applique pas : suivez celui du
 4. [Après l'installation](#4-après-linstallation) : premier essai, recettes, Wi-Fi
 5. [En cas de problème](#5-en-cas-de-problème) · [Revenir en arrière](#6-revenir-en-arrière) ·
    [Détails techniques](#7-détails-techniques)
+6. [Depuis un PC Linux](#8-depuis-un-pc-linux) : ce qui change
 
 ## 1. Avant de commencer
 
@@ -193,7 +195,8 @@ il est resté en mode téléchargement).
 ✅ À la fin : `OK: flash-twrp done`
 
 4. **Éteignez** le robot, **débranchez** le câble, **rallumez** : l'écran de **TWRP** apparaît.
-   **Rebranchez** le câble.
+   La première fois, TWRP demande *Keep System Read only?* : touchez **Keep Read Only** (ne faites
+   pas glisser le curseur). **Rebranchez** le câble.
 
 ### Étape 4 · Préparer le root — `root`
 
@@ -315,6 +318,7 @@ d'origine »** la laisse se synchroniser avec les serveurs Lidl ; revenez avec l
 | `flash-root` : *write failed* ou *read-back differs* | Erreur d'écriture | **Ne pas éteindre le robot** (TWRP tourne toujours). Relancer `flash-root` |
 | `flash-root` : *holds something unexpected* | Contenu inattendu sur le robot | Rien n'a été écrit. Ne pas continuer : `status`, et demander de l'aide |
 | `android` : l'appui sur **Autoriser** a été raté | La fenêtre de Magisk se ferme après 10 s | Relancer `android` et appuyer vite. Refusé pour de bon : appli Magisk › Superutilisateur › Shell › autoriser |
+| adb : *more than one device/emulator* | Après `wifi`, câble encore branché, adb voit le robot deux fois | Débrancher le câble, ou lancer `adb disconnect <adresse IP du robot>:5555` |
 | Toque affiche « Base absente » | Busybox de Magisk manquante | Relancer `install` |
 | Messages « Toque s'est vu refuser les droits » | Réglage de Magisk | Relancer `install` |
 | Bloqué dans l'appli d'origine | Normal, pas de bouton Retour sur ce robot | Bouton **« Retour à Toque »** |
@@ -349,6 +353,8 @@ Rien n'est écrit tant que le Mac ne joint pas le robot. Dans l'ordre :
   `bash tools/setup/toque-setup.sh unroot` remet vos sauvegardes `boot-original.img` et
   `recovery-original.img` sur le robot, depuis TWRP. Si le robot ne démarre plus du tout :
   `unroot --download-mode` (robot éteint, câble branché, comme pour `backup`).
+  Ce qui reste ensuite sur le robot : adb reste activé (USB, et port 5555 si vous avez fait
+  `wifi`), sans root, et l'appli Magisk reste installée, sans effet.
 
 ## 7. Détails techniques
 
@@ -420,3 +426,44 @@ adb reboot
 
 À faire uniquement sur le réseau de la maison : n'importe quel appareil connecté dessus pourrait
 alors accéder au robot.
+
+## 8. Depuis un PC Linux
+
+Le même script et les mêmes étapes fonctionnent sous Linux (x86_64 ou ARM). **Essayé une fois sur un
+vrai robot**, depuis Arch Linux sur un portable x86_64 : de `prepare` à `wifi`, puis
+`unroot`, tout a fonctionné, par libusb ; `backup` et `flash-twrp` ont aussi fonctionné avec
+`--serial`. Pas encore essayés depuis Linux : `unroot --download-mode` et ARM.
+
+À la place de la partie 2 :
+
+1. Installez Python 3.10+, libusb, git, curl et unzip avec l'outil de votre distribution :
+   - Arch : `sudo pacman -S python libusb git curl unzip`
+   - Debian/Ubuntu : `sudo apt install python3 python3-venv libusb-1.0-0 git curl unzip`
+   - Fedora : `sudo dnf install python3 libusb1 git curl unzip`
+2. Téléchargez ce dépôt et allez dans son dossier (étapes 3 et 4 de la partie 2).
+3. Donnez à votre utilisateur l'accès au port USB du robot, avec la
+   [règle udev](../tools/setup/51-toque-robot.rules) de ce dépôt (elle demande votre mot de passe) :
+   ```
+   sudo install -m 644 tools/setup/51-toque-robot.rules /etc/udev/rules.d/
+   sudo udevadm control --reload-rules
+   ```
+   La règle tient aussi ModemManager à l'écart du robot. Elle donne l'accès à la personne connectée
+   devant l'ordinateur, pas à une session SSH. Si vous gérez l'accès USB autrement, ajoutez
+   `--no-udev-check` à chaque commande.
+
+Suivez ensuite la partie 3a ou 3b telle quelle, en lisant « ordinateur » pour « Mac ». Ce qui change :
+
+- Il n'y a pas de fenêtre *Autoriser l'accessoire à se connecter ?*.
+- mtkclient parle au robot par **libusb** par défaut (sur Mac : le pilote série). Si `backup`
+  s'arrête sur le handshake ou sur *Sync error*, éteignez le robot et réessayez avec `--serial`
+  (il passe par `/dev/ttyACM0`, avec les mêmes correctifs que sur Mac).
+- Pour savoir si l'ordinateur voit le robot en mode download : `lsusb`, juste après l'allumage,
+  doit lister `0e8d:2000` (MediaTek). Sinon, c'est le câble, le port ou l'adaptateur. Sous TWRP,
+  le robot apparaît en `18d1:4ee2` ; sous Android avec adb, en `0e8d:201d` (`0e8d:2008` avant le
+  root).
+- `sudo dmesg` répète *new low-speed USB device* et *device descriptor read/64, error -71* : le
+  câble n'est pas enfoncé à fond. Débranchez-le et rebranchez-le.
+- `adb` répond *no permissions* : la règle udev manque ; installez-la, puis débranchez et
+  rebranchez le câble.
+- Sous Linux ARM, Google ne publie pas adb : installez celui de votre distribution (`adb` ou
+  `android-tools`).

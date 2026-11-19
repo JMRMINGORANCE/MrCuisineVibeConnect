@@ -24,7 +24,8 @@ uses **the official Lidl recipes**.
 ## Install
 
 **Start here: [docs/INSTALLATION.md](docs/INSTALLATION.md)**, a step-by-step guide that starts from
-zero, for a Mac. On Windows, follow the
+zero, for a Mac (and, [tried once](docs/INSTALLATION.md#8-from-a-linux-pc), a
+Linux PC). On Windows, follow the
 [original repository's guide](https://github.com/Wuki60/MrCuisineVibeConnect/blob/main/docs/INSTALLATION.md).
 
 In short: you need a Mac, a **USB-A male ↔ USB-A male** cable, a small Torx screwdriver and 1 to 2
