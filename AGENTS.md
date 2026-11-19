@@ -39,7 +39,7 @@ person this before starting.
 
 **Linux.** The same script runs on a Linux PC: see [On Linux](#on-linux) for what differs.
 It was run **once** on a real robot (Arch Linux, x86_64, through libusb), from `prepare` to
-`wifi`; `unroot`, `--serial` and ARM were not tried from Linux. Tell the person this
+`wifi`, then `unroot`; `unroot --download-mode`, `--serial` and ARM were not tried from Linux. Tell the person this
 instead of the Mac sentence above.
 
 ## Rules for the agent

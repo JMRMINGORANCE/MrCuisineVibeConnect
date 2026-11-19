@@ -417,8 +417,8 @@ Only on the home network: any device connected to it could then reach the robot.
 ## 8. From a Linux PC
 
 The same script and the same steps work from Linux (x86_64 or ARM). **Tried once on a real robot**, from
-Arch Linux on an x86_64 laptop: `prepare` to `wifi` all worked, through libusb. Not tried yet
-from Linux: `unroot`, the `--serial` option, and ARM.
+Arch Linux on an x86_64 laptop: `prepare` to `wifi` and `unroot` all worked, through libusb.
+Not tried yet from Linux: `unroot --download-mode`, the `--serial` option, and ARM.
 
 Instead of part 2:
 

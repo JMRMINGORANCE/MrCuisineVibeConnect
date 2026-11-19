@@ -427,8 +427,9 @@ alors accéder au robot.
 ## 8. Depuis un PC Linux
 
 Le même script et les mêmes étapes fonctionnent sous Linux (x86_64 ou ARM). **Essayé une fois sur un
-vrai robot**, depuis Arch Linux sur un portable x86_64 : de `prepare` à `wifi`, tout a
-fonctionné, par libusb. Pas encore essayés depuis Linux : `unroot`, l'option `--serial` et ARM.
+vrai robot**, depuis Arch Linux sur un portable x86_64 : de `prepare` à `wifi`, puis
+`unroot`, tout a fonctionné, par libusb. Pas encore essayés depuis Linux :
+`unroot --download-mode`, l'option `--serial` et ARM.
 
 À la place de la partie 2 :
 
