@@ -1,11 +1,17 @@
-# Publishes a Toque release automatically when versionName changes in app/build.gradle.kts.
-# Robots then find it in Settings › Updates.
+# Publishes a Toque release automatically when versionName changes in app/build.gradle.kts
+# or forkRevision changes in fork.properties. Robots then find it in Settings › Updates.
+#
+# This copy publishes "<upstream version>.<forkRevision>" (e.g. 0.5.1.1, versionCode 801), so it is
+# always newer than the upstream build it contains, and older than the next upstream version.
+# The version is only patched inside the CI checkout: app/build.gradle.kts stays identical to
+# upstream, which keeps the automatic merges in sync-upstream.yml free of conflicts.
 name: Publish a release
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: write
@@ -20,19 +26,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
 
       - name: App version
         id: version
         run: |
-          v=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          base=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          code=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts)
+          rev=$(grep -oP '^forkRevision=\K[0-9]+' fork.properties)
+          if [ -z "$rev" ] || [ "$rev" -lt 1 ] || [ "$rev" -gt 99 ]; then echo "forkRevision must be 1 to 99"; exit 1; fi
+          v="$base.$rev"
           echo "name=$v" >> "$GITHUB_OUTPUT"
+          echo "code=$((code * 100 + rev))" >> "$GITHUB_OUTPUT"
           if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
             echo "Version $v is already published: nothing to do."
             echo "publish=false" >> "$GITHUB_OUTPUT"
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Set this copy's version
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          sed -i -E 's/(versionName\s*=\s*")[^"]+"/\1${{ steps.version.outputs.name }}"/; s/(versionCode\s*=\s*)[0-9]+/\1${{ steps.version.outputs.code }}/' app/build.gradle.kts
+          grep -E 'versionName|versionCode' app/build.gradle.kts
 
       - uses: actions/setup-java@v4
         if: steps.version.outputs.publish == 'true'
@@ -54,4 +72,5 @@ jobs:
           prev=$(git describe --tags --abbrev=0 2>/dev/null || true)
           if [ -n "$prev" ]; then range="$prev..HEAD"; else range="HEAD"; fi
           git log --no-merges --pretty='- %s' $range > notes.md
-          gh release create "v$v" "Toque-$v.apk" --title "Toque $v" --notes-file notes.md --target "$GITHUB_SHA"
+          git checkout -- app/build.gradle.kts
+          gh release create "v$v" "Toque-$v.apk" --title "Toque $v" --notes-file notes.md --target "$(git rev-parse HEAD)"

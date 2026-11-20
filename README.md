@@ -1,6 +1,6 @@
 # MrCuisineVibeConnect
 
-🇫🇷 **[Version française](README.fr.md)**
+🇪🇸 **[Versión en español](README.es.md)** (this copy: Spanish UI, synced daily with the original) · 🇫🇷 **[Version française](README.fr.md)**
 
 > **macOS version.** This is a copy of [Wuki60/MrCuisineVibeConnect](https://github.com/Wuki60/MrCuisineVibeConnect)
 > whose install tools run on a **Mac**: shell scripts instead of PowerShell, and
@@ -96,7 +96,7 @@ app/    Android app (minSdk 23), no AndroidX
 tools/  setup/toque-setup.sh (full install from a Mac, can be driven by an AI agent), robot/
         (scripts run on the robot: root, flash from TWRP, restore), install, restore and release
         scripts (.sh for macOS, the original .ps1 for Windows), twin.py (digital twin for testing)
-docs/   INSTALLATION.md, INSTALLATION.fr.md
+docs/   INSTALLATION.md, INSTALLATION.fr.md, INSTALLATION.es.md
 AGENTS.md  install procedure for an AI agent
 ```
 

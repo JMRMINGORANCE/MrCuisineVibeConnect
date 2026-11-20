@@ -1,0 +1,83 @@
+# Mantiene esta copia al día con los proyectos originales y publica una versión nueva cuando cambian.
+#
+#  - Wuki60/MrCuisineVibeConnect: la app Toque (el original).
+#  - flexbox/MrCuisineVibeConnect: las herramientas de instalación para Mac y Linux.
+#
+# Cada día (y a mano desde la pestaña Actions) fusiona sus ramas main en la nuestra. Si hay cambios,
+# los sube y lanza la publicación: release.yml solo publica si la versión ha cambiado, igual que el
+# original. Si una fusión choca con nuestros cambios, no toca nada y abre una incidencia.
+name: Sync with upstream
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.merge.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Merge upstream
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          before=$(git rev-parse HEAD)
+          failed=""
+          for up in Wuki60 flexbox; do
+            git remote add "$up" "https://github.com/$up/MrCuisineVibeConnect.git"
+            git fetch --no-tags "$up" main
+            if ! git merge --no-edit "$up/main" -m "Sincronizar con $up/MrCuisineVibeConnect"; then
+              files=$(git diff --name-only --diff-filter=U | sed 's/^/- /')
+              git merge --abort
+              failed="$failed$up:"$'\n'"$files"$'\n'
+            fi
+          done
+          if [ -n "$failed" ]; then
+            title="Sincronización con el original: conflicto"
+            body=$(printf 'La fusión automática choca con nuestros cambios en:\n\n%s\nHay que fusionar a mano (git merge <remoto>/main) y resolver los conflictos.\n\nEjecución: %s/%s/actions/runs/%s' "$failed" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+            if [ -z "$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[].number')" ]; then
+              gh issue create --title "$title" --body "$body"
+            fi
+          fi
+          if [ "$(git rev-parse HEAD)" = "$before" ]; then
+            echo "Nada nuevo en el original."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git log --oneline "$before..HEAD"
+          if ! git push origin HEAD:main; then
+            # GITHUB_TOKEN no puede subir cambios en .github/workflows: si el original los toca, a mano.
+            title="Sincronización con el original: hay que subir a mano"
+            body=$(printf 'El original ha cambiado archivos que GitHub no deja subir automáticamente (probablemente en .github/workflows).\n\nEn tu copia local: git pull, git merge Wuki60/main flexbox/main, git push.\n\nEjecución: %s/%s/actions/runs/%s' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+            if [ -z "$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[].number')" ]; then
+              gh issue create --title "$title" --body "$body"
+            fi
+            exit 1
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: sync
+    if: needs.sync.outputs.changed == 'true'
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write

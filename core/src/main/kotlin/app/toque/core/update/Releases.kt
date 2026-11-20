@@ -15,7 +15,11 @@ data class Release(
 
 /** Lecture de l'API GitHub « dernière version » et comparaison de numéros de version. */
 object Releases {
-    const val REPO = "Wuki60/MrCuisineVibeConnect"
+    /**
+     * Dépôt dont les versions sont proposées. Copie en espagnol, synchronisée automatiquement avec
+     * Wuki60/MrCuisineVibeConnect (voir .github/workflows/sync-upstream.yml).
+     */
+    const val REPO = "JMRMINGORANCE/MrCuisineVibeConnect"
     const val LATEST_URL = "https://api.github.com/repos/$REPO/releases/latest"
     const val PAGE_URL = "https://github.com/$REPO/releases"
 
