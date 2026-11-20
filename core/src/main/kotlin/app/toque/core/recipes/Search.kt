@@ -5,11 +5,23 @@ import java.text.Normalizer
 object TextNorm {
     private val MARKS = Regex("\\p{Mn}+")
     private val NON_ALNUM = Regex("[^a-z0-9]+")
-    private val STOP = hashSetOf(
+    /** Mots vides par langue des recettes (le jeu français sert aussi aux autres langues). */
+    private val STOP_FR = hashSetOf(
         "de", "du", "des", "la", "le", "les", "l", "d", "et", "a", "au", "aux", "en", "un", "une",
         "pour", "sur", "par", "ou", "son", "sa", "ses", "mon", "ma", "mes", "the", "of", "with", "y",
         "recette", "recettes",
     )
+    private val STOP_ES = hashSetOf(
+        "de", "del", "la", "las", "el", "los", "lo", "y", "e", "o", "u", "a", "al", "en", "un", "una",
+        "unos", "unas", "con", "para", "por", "su", "sus", "mi", "mis", "the", "of", "with",
+        "receta", "recetas",
+    )
+
+    /** Langue des recettes du catalogue (« fr », « es »…), d'après la langue de l'interface. */
+    fun defaultLanguage(): String =
+        McOnline.languageFor(app.toque.core.i18n.I18n.code).substringBefore('-').lowercase()
+
+    private fun stopWords(language: String) = if (language == "es") STOP_ES else STOP_FR
 
     fun normalize(s: String): String {
         var t = s.lowercase().replace("œ", "oe").replace("æ", "ae").replace("ß", "ss")
@@ -19,21 +31,38 @@ object TextNorm {
         return t.trim()
     }
 
+    /** Pluriels simples, selon la langue des recettes. */
+    fun stem(w: String, language: String = "fr"): String = if (language == "es") stemEs(w) else stemFr(w)
+
     /** Pluriels français simples : pommes -> pomme, choux -> chou, gâteaux -> gateau. */
-    fun stem(w: String): String = when {
+    private fun stemFr(w: String): String = when {
         w.length > 4 && w.endsWith("aux") -> w.dropLast(1)
         w.length > 3 && (w.endsWith("s") || w.endsWith("x")) && !w.endsWith("ss") -> w.dropLast(1)
         else -> w
     }
 
-    fun tokens(s: String, keepStopWords: Boolean = false): List<String> {
+    /**
+     * Pluriels espagnols simples, appliqués de la même façon à l'index et à la requête :
+     * limones -> limon, nueces -> nuez, tomates/tomate -> tomat, huevos -> huevo.
+     */
+    private fun stemEs(w: String): String {
+        var t = w
+        if (t.length > 4 && t.endsWith("ces") && t[t.length - 4] in "aeiou") return t.dropLast(3) + "z"
+        if (t.length > 3 && t.endsWith("es")) t = t.dropLast(2)
+        else if (t.length > 3 && t.endsWith("s") && !t.endsWith("ss")) t = t.dropLast(1)
+        if (t.length > 3 && t.endsWith("e")) t = t.dropLast(1)
+        return t
+    }
+
+    fun tokens(s: String, keepStopWords: Boolean = false, language: String = "fr"): List<String> {
+        val stop = stopWords(language)
         val n = normalize(s)
         if (n.isEmpty()) return emptyList()
         val out = ArrayList<String>()
         for (w in n.split(' ')) {
             if (w.isEmpty()) continue
-            if (!keepStopWords && w in STOP) continue
-            out += stem(w)
+            if (!keepStopWords && w in stop) continue
+            out += stem(w, language)
         }
         return out
     }
@@ -79,7 +108,7 @@ data class RecipeFilter(
  * pondéré (titre > catégorie/tags > ingrédients > étapes). Quelques millisecondes pour
  * des milliers de recettes, même sur la tablette d'origine.
  */
-class SearchIndex(recipes: List<Recipe>) {
+class SearchIndex(recipes: List<Recipe>, val language: String = TextNorm.defaultLanguage()) {
 
     class Entry(
         val id: String,
@@ -116,7 +145,7 @@ class SearchIndex(recipes: List<Recipe>) {
             list += Entry(r.id, r.title, r.category, r.tags, r.favorite, r.source, r.totalMinutes, r.image,
                 r.machineSteps, TextNorm.normalize(r.title), r.rating, r.ratingCount)
             fun add(text: String, w: Int) {
-                for (t in TextNorm.tokens(text)) {
+                for (t in TextNorm.tokens(text, language = language)) {
                     val p = postings.getOrPut(t) { HashMap(4) }
                     val old = p[index] ?: 0
                     if (w > old) p[index] = w
@@ -175,7 +204,7 @@ class SearchIndex(recipes: List<Recipe>) {
     }
 
     fun search(query: String, filter: RecipeFilter = RecipeFilter(), limit: Int = 500): List<Hit> {
-        val tokens = TextNorm.tokens(query).distinct()
+        val tokens = TextNorm.tokens(query, language = language).distinct()
         if (tokens.isEmpty()) {
             return entries.filter { accepts(it, filter) }
                 .sortedWith(compareByDescending<Entry> { it.favorite }.thenBy { it.normTitle })

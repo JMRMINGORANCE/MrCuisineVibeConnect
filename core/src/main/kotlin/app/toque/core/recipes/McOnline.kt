@@ -32,6 +32,12 @@ object McOnline {
     fun listUrl(page: Int): String =
         "$API/api/v2/recipes/page/$page/size/$PAGE_SIZE?filters%5BdeviceTypes%5D%5B%5D=$DEVICE&filters%5Bsource%5D%5B%5D=official"
 
+    /** Unité qui compte des personnes ou des portions (déjà affichée comme « %d pers. »). */
+    fun isPeopleUnit(unit: String): Boolean {
+        val u = TextNorm.normalize(unit)
+        return listOf("portion", "pers", "porcion", "racion", "serving").any { u.startsWith(it) }
+    }
+
     fun recipeUrl(apiId: Long): String = "$API/api/v2/recipes/$apiId"
 
     fun toqueId(apiId: Long): String = ID_PREFIX + apiId
@@ -110,8 +116,7 @@ object McOnline {
         val notes = ArrayList<String>()
         val servingUnit = size.str("servingUnit")?.trim().orEmpty()
         val amount = size.int("amount") ?: 0
-        if (amount > 0 && servingUnit.isNotEmpty() && !servingUnit.lowercase().startsWith("portion") &&
-            !servingUnit.lowercase().startsWith("pers")) notes += tr("Pour %d %s", amount, servingUnit)
+        if (amount > 0 && servingUnit.isNotEmpty() && !isPeopleUnit(servingUnit)) notes += tr("Pour %d %s", amount, servingUnit)
         plain(r.str("description"))?.let { notes += it }
         plain(r.str("hintsAndTips"))?.let { notes += it }
 
